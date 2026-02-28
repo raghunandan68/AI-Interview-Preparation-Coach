@@ -387,32 +387,71 @@ with st.sidebar:
 
     st.markdown("**⚙️ Interview Settings**")
 
-    job_role = st.selectbox(
-        "Job Role",
-        ["Software Developer", "Cloud Engineer", "Data Scientist", "DevOps Engineer", "ML Engineer", "Custom"],
-        help="Select the role you are preparing for"
-    )
-    if job_role == "Custom":
-        job_role = st.text_input("Enter your Job Role", placeholder="e.g. Backend Engineer")
-        if not job_role:
-            st.warning("Please enter a job role to continue.")
+    interview_active = st.session_state.get("interview_active", False)
 
-    interview_type = st.selectbox(
-        "Interview Type",
-        ["HR", "Behavioral", "Technical"],
-        help="HR: Background & motivation | Behavioral: Situational | Technical: DSA Coding"
-    )
+    if interview_active:
+        # Lock all settings during active interview
+        st.markdown(f"""
+        <div style='background:#1a1f2e; border:1px solid #f59e0b; border-radius:8px; padding:10px 14px; margin-bottom:12px;'>
+            <span style='color:#f59e0b; font-size:0.8rem; font-weight:600;'>🔒 Settings locked during interview</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-    difficulty = timer_limit = language = None
+        job_role       = st.session_state.get("locked_job_role", "—")
+        interview_type = st.session_state.get("locked_interview_type", "HR")
+        difficulty     = st.session_state.get("locked_difficulty", None)
+        timer_limit    = st.session_state.get("locked_timer_limit", None)
+        language       = st.session_state.get("locked_language", None)
 
-    if interview_type == "Technical":
-        st.markdown("**🔧 Technical Settings**")
-        difficulty   = st.selectbox("DSA Difficulty", ["Easy", "Medium", "Hard"])
-        timer_limit  = st.slider("Time Limit (minutes)", 5, 45, 20)
-        language     = st.selectbox(
-            "Programming Language",
-            ["Python", "C", "C++", "Java", "C#", "JavaScript"]
+        st.markdown(f"""
+        <div style='background:#1a1f2e; border:1px solid #2d3748; border-radius:8px; padding:12px 14px;'>
+            <div style='color:#60a5fa; font-size:0.78rem; margin-bottom:4px;'>Job Role</div>
+            <div style='color:#ffffff; font-size:0.9rem; font-weight:600;'>{job_role}</div>
+            <div style='color:#60a5fa; font-size:0.78rem; margin:8px 0 4px 0;'>Interview Type</div>
+            <div style='color:#ffffff; font-size:0.9rem; font-weight:600;'>{interview_type}</div>
+            {"<div style='color:#60a5fa; font-size:0.78rem; margin:8px 0 4px 0;'>Difficulty</div><div style='color:#ffffff; font-size:0.9rem; font-weight:600;'>" + str(difficulty) + "</div>" if difficulty else ""}
+            {"<div style='color:#60a5fa; font-size:0.78rem; margin:8px 0 4px 0;'>Time Limit</div><div style='color:#ffffff; font-size:0.9rem; font-weight:600;'>" + str(timer_limit) + " min</div>" if timer_limit else ""}
+        </div>
+        """, unsafe_allow_html=True)
+
+        if interview_type == "Technical":
+            st.markdown("**💻 Programming Language**")
+            language = st.selectbox(
+                "Programming Language",
+                ["Python", "C", "C++", "Java", "C#", "JavaScript"],
+                index=["Python", "C", "C++", "Java", "C#", "JavaScript"].index(
+                    st.session_state.get("locked_language", "Python")
+                )
+            )
+            st.session_state.locked_language = language
+
+    else:
+        job_role = st.selectbox(
+            "Job Role",
+            ["Software Developer", "Cloud Engineer", "Data Scientist", "DevOps Engineer", "ML Engineer", "Custom"],
+            help="Select the role you are preparing for"
         )
+        if job_role == "Custom":
+            job_role = st.text_input("Enter your Job Role", placeholder="e.g. Backend Engineer")
+            if not job_role:
+                st.warning("Please enter a job role to continue.")
+
+        interview_type = st.selectbox(
+            "Interview Type",
+            ["HR", "Behavioral", "Technical"],
+            help="HR: Background & motivation | Behavioral: Situational | Technical: DSA Coding"
+        )
+
+        difficulty = timer_limit = language = None
+
+        if interview_type == "Technical":
+            st.markdown("**🔧 Technical Settings**")
+            difficulty   = st.selectbox("DSA Difficulty", ["Easy", "Medium", "Hard"])
+            timer_limit  = st.slider("Time Limit (minutes)", 5, 45, 20)
+            language     = st.selectbox(
+                "Programming Language",
+                ["Python", "C", "C++", "Java", "C#", "JavaScript"]
+            )
 
     st.markdown("<hr style='border-color:#2d3748;'>", unsafe_allow_html=True)
 
@@ -500,6 +539,11 @@ if not st.session_state.interview_started and not st.session_state.final_score:
         else:
             st.session_state.interview_started = True
             st.session_state.interview_active  = True
+            st.session_state.locked_job_role       = job_role
+            st.session_state.locked_interview_type = interview_type
+            st.session_state.locked_difficulty      = difficulty
+            st.session_state.locked_timer_limit     = timer_limit
+            st.session_state.locked_language        = language
             st.rerun()
 
 # ════════════════════════════════════════════
@@ -624,14 +668,10 @@ elif st.session_state.interview_active:
                         text.innerHTML        = "⏰ Time is up! Your code is being submitted...";
 
                         // Click the hidden Streamlit time-expired button after 1s
+                        // Trigger page rerun by navigating with a query param
                         setTimeout(function() {{
-                            var btns = window.parent.document.querySelectorAll("button");
-                            btns.forEach(function(btn) {{
-                                if (btn.innerText.trim() === "__time_expired__") {{
-                                    btn.click();
-                                }}
-                            }});
-                        }}, 1000);
+                            window.parent.location.href = window.parent.location.pathname + "?time_expired=1";
+                        }}, 1000);;
                         return;
                     }}
                     updateDisplay();
@@ -664,11 +704,9 @@ elif st.session_state.interview_active:
             run_code      = col1.button("▶️ Run Code",      use_container_width=True)
             submit_answer = col2.button("✅ Submit Answer", use_container_width=True, type="primary")
 
-            # Hidden button that JS clicks when countdown hits zero
-            time_expired_clicked = st.button("__time_expired__", key="time_expired_btn")
-
             # ── TIME EXPIRED: auto-submit saved code ──
-            if (time_expired_clicked or remaining == 0) and not st.session_state.get("time_expired_handled", False):
+            time_expired_via_url = st.query_params.get("time_expired", "") == "1"
+            if (time_expired_via_url or remaining == 0) and not st.session_state.get("time_expired_handled", False):
                 st.session_state["time_expired_handled"] = True
                 saved_code = st.session_state.get("last_code_snapshot", "# No code written before time expired")
                 st.error("⏰ Time is up! Your code has been automatically submitted for evaluation.")
@@ -699,6 +737,7 @@ elif st.session_state.interview_active:
                 st.session_state.current_question   = None
                 st.session_state["time_expired_handled"] = False
                 st.session_state.pop("last_code_snapshot", None)
+                st.query_params.clear()
                 time.sleep(1)
                 st.rerun()
 

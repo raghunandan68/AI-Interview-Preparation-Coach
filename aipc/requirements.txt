@@ -1,7 +1,0 @@
-streamlit
-supabase
-streamlit_ace
-python-dotenv
-requests
-SpeechRecognition
-bcrypt

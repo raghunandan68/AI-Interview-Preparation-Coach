@@ -84,11 +84,22 @@ def inject_tab_switching_js(remaining_seconds=None):
     }};
     
     // 1. Detect tab switching (Attach to both parent and current window for robustness)
+    let visibilityTimeout;
     const handleVisibilityChange = () => {{
-        if (document.hidden || (parentDoc && parentDoc.hidden)) {{
-            console.log("Tab switch detected. Terminating interview.");
-            try {{ alert("WARNING: Tab switching detected! Your interview is completely terminated and evaluated."); }} catch(e) {{}}
-            clickButton('TAB_SWITCH_TERMINATE');
+        const isHidden = (parentDoc && parentDoc !== document) ? parentDoc.hidden : document.hidden;
+        
+        if (isHidden) {{
+            // Wait 500ms to ensure it's a real browser tab switch, not just a Streamlit React UI flicker
+            visibilityTimeout = setTimeout(() => {{
+                const stillHidden = (parentDoc && parentDoc !== document) ? parentDoc.hidden : document.hidden;
+                if (stillHidden) {{
+                    console.log("Tab switch confirmed. Terminating interview.");
+                    try {{ alert("WARNING: Tab switching detected! Your interview is completely terminated and evaluated."); }} catch(e) {{}}
+                    clickButton('TAB_SWITCH_TERMINATE');
+                }}
+            }}, 500);
+        }} else {{
+            clearTimeout(visibilityTimeout);
         }}
     }};
     
@@ -98,7 +109,7 @@ def inject_tab_switching_js(remaining_seconds=None):
         if (parentDoc && parentDoc !== document) {{
             parentDoc.addEventListener("visibilitychange", handleVisibilityChange);
         }}
-    }}, 2000);
+    }}, 1000);
     
     // 2. Detect Escape key or Fullscreen exit
     const handleEscViolation = () => {{

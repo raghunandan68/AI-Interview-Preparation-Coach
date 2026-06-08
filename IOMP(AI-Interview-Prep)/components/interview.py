@@ -86,15 +86,19 @@ def inject_tab_switching_js(remaining_seconds=None):
     // 1. Detect tab switching (Attach to both parent and current window for robustness)
     const handleVisibilityChange = () => {{
         if (document.hidden || (parentDoc && parentDoc.hidden)) {{
-            alert("WARNING: Tab switching detected! Your interview is completely terminated and evaluated.");
+            console.log("Tab switch detected. Terminating interview.");
+            try {{ alert("WARNING: Tab switching detected! Your interview is completely terminated and evaluated."); }} catch(e) {{}}
             clickButton('TAB_SWITCH_TERMINATE');
         }}
     }};
     
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    if (parentDoc && parentDoc !== document) {{
-        parentDoc.addEventListener("visibilitychange", handleVisibilityChange);
-    }}
+    // Delay attaching the event listener to avoid false positives when the iframe first loads
+    setTimeout(() => {{
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        if (parentDoc && parentDoc !== document) {{
+            parentDoc.addEventListener("visibilitychange", handleVisibilityChange);
+        }}
+    }}, 2000);
     
     // 2. Detect Escape key or Fullscreen exit
     const handleEscViolation = () => {{
@@ -188,9 +192,26 @@ def check_permissions():
     
     if cam_check and st.session_state.get('mic_granted'):
         st.success("🎉 All permissions granted! You can now proceed to the interview.")
-        if st.button("🚀 Enter Interview Room", type="primary", use_container_width=True):
+        if st.button("🚀 Enter Interview Room", key="btn_enter_room", type="primary", use_container_width=True):
             st.session_state.permissions_confirmed = True
             st.rerun()
+            
+        js_code = """
+        <script>
+            const parentDoc = window.parent.document;
+            const buttons = Array.from(parentDoc.querySelectorAll('button'));
+            const enterBtn = buttons.find(b => b.innerText.includes('Enter Interview Room'));
+            if (enterBtn && !enterBtn.dataset.fullscreenAttached) {
+                enterBtn.dataset.fullscreenAttached = 'true';
+                enterBtn.addEventListener('click', () => {
+                    if (parentDoc.documentElement.requestFullscreen) {
+                        parentDoc.documentElement.requestFullscreen().catch(e => console.log(e));
+                    }
+                });
+            }
+        </script>
+        """
+        st.components.v1.html(js_code, height=0)
     elif not cam_check:
         st.warning("⚠️ Camera access is required to proceed.")
     elif not st.session_state.get('mic_granted'):
@@ -335,7 +356,7 @@ def render_technical_round():
     
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("➕ Ask Next Question", use_container_width=True):
+        if st.button("➕ Ask Next Question", key="btn_next_tech", use_container_width=True):
             st.session_state.interview_transcript.append({
                 "question": st.session_state.current_question,
                 "answer": st.session_state.code_answer
@@ -347,7 +368,7 @@ def render_technical_round():
             st.rerun()
             
     with col_btn2:
-        if st.button("🏁 End Interview & Get Feedback", type="primary", use_container_width=True):
+        if st.button("🏁 End Interview & Get Feedback", key="btn_end_tech", type="primary", use_container_width=True):
             end_interview()
 
 def render_hr_round():
@@ -417,7 +438,7 @@ def render_hr_round():
     
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("➕ Ask Next Question", use_container_width=True):
+        if st.button("➕ Ask Next Question", key="btn_next_hr", use_container_width=True):
             st.session_state.interview_transcript.append({
                 "question": st.session_state.current_hr_question,
                 "answer": st.session_state.answer_text
@@ -427,7 +448,7 @@ def render_hr_round():
             st.rerun()
             
     with col_btn2:
-        if st.button("🏁 End Interview & Get Feedback", type="primary", use_container_width=True):
+        if st.button("🏁 End Interview & Get Feedback", key="btn_end_hr", type="primary", use_container_width=True):
             end_interview()
 
 def render_interview():
@@ -500,20 +521,20 @@ def render_interview():
     
     col_fs, col_end = st.columns([4, 1])
     with col_fs:
-        st.button("🔲 Enter Full Screen", type="primary", use_container_width=True)
+        st.button("🔲 Enter Full Screen", key="btn_fullscreen", type="primary", use_container_width=True)
     with col_end:
-        if st.button("End Early", type="secondary", use_container_width=True):
+        if st.button("End Early", key="btn_end_early", type="secondary", use_container_width=True):
             msg = "Candidate ended interview manually."
             if "start_time" in st.session_state: del st.session_state.start_time
             end_interview(violation_msg=msg)
             st.rerun()
             
     # Secret buttons that Javascript clicks
-    if st.button("TAB_SWITCH_TERMINATE", type="secondary"):
+    if st.button("TAB_SWITCH_TERMINATE", key="btn_tab_violation", type="secondary"):
         msg = "SYSTEM VIOLATION: Candidate completely switched tabs during the live interview. Evaluate them strictly. Note this massive negative cheating behavioral flag."
         end_interview(violation_msg=msg)
 
-    if st.button("ESC_PRESSED_TERMINATE", type="secondary"):
+    if st.button("ESC_PRESSED_TERMINATE", key="btn_esc_violation", type="secondary"):
         if 'esc_count' not in st.session_state:
             st.session_state.esc_count = 0
         st.session_state.esc_count += 1

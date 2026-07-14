@@ -3,12 +3,6 @@ import streamlit as st
 from dotenv import load_dotenv
 import os
 
-print(
-    subprocess.check_output(
-        [sys.executable, "-m", "pip", "freeze"]
-    ).decode()
-)
-raise Exception("Freeze Debug")
 from components.auth import render_auth
 from components.dashboard import render_dashboard
 from components.interview import render_interview

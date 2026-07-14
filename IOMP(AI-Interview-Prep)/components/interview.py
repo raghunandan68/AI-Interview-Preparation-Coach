@@ -5,6 +5,19 @@ from utils.piston_api import execute_code
 import cv2
 import numpy as np
 
+print("=" * 60)
+print("cv2 module:", cv2)
+print("cv2 file:", getattr(cv2, "__file__", None))
+print("cv2 version:", getattr(cv2, "__version__", None))
+print("CascadeClassifier:", hasattr(cv2, "CascadeClassifier"))
+print("VideoCapture:", hasattr(cv2, "VideoCapture"))
+print("imread:", hasattr(cv2, "imread"))
+print("cvtColor:", hasattr(cv2, "cvtColor"))
+print("dir length:", len(dir(cv2)))
+print("=" * 60)
+
+raise Exception("Debug Stop")
+
 # Load the pre-trained Haar Cascade for face detection
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
